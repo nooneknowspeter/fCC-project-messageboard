@@ -7,6 +7,9 @@ const cors        = require('cors');
 const apiRoutes         = require('./routes/api.js');
 const fccTestingRoutes  = require('./routes/fcctesting.js');
 const runner            = require('./test-runner');
+// database connection
+const mongoose = require('mongoose');
+module.exports = mongoose.connect(process.env.DBURL);
 
 const app = express();
 

@@ -1,11 +1,10 @@
-'use strict';
+"use strict";
+
 const BoardModel = require("../models/board-model").BoardModel;
 const ReplyModel = require("../models/reply-model").ReplyModel;
 const ThreadModel = require("../models/thread-model").ThreadModel;
 
 module.exports = function (app) {
-    
-  app.route('/api/replies/:board');
   app
     // threads
     .route("/api/threads/:board")
@@ -152,4 +151,111 @@ module.exports = function (app) {
       });
     });
 
+  // replies
+  app
+    .route("/api/replies/:board")
+    // create
+    .post((req, res) => {
+      const { thread_id, text, delete_password } = req.body;
+      const board = req.params.board;
+
+      const Reply = new ReplyModel({
+        text: text,
+        delete_password: delete_password,
+      });
+
+      console.log("Incoming request ->", req.body);
+
+      console.log("Created new Reply ->", Reply);
+
+      BoardModel.findOne({ name: board }, (err, boardData) => {
+        if (!boardData) {
+          res.json("error", "Board not found");
+        } else {
+          const date = new Date();
+
+          let threadToAddReply = boardData.threads.id(thread_id);
+          threadToAddReply.bumped_on = date;
+          threadToAddReply.replies.push(Reply);
+
+          boardData.save((err, updatedData) => {
+            res.json(updatedData);
+          });
+        }
+      });
+    })
+    // read
+    .get((req, res) => {
+      const board = req.params.board;
+      BoardModel.findOne({ name: board }, (err, data) => {
+        if (!data) {
+          console.log("Error -> Board does not exist");
+
+          res.json({ error: "No board with this name" });
+        } else {
+          console.log("Board\n-----\n", data);
+
+          const thread = data.threads.id(req.query.thread_id);
+          res.json(thread);
+        }
+      });
+    })
+    // update
+    .put((req, res) => {
+      const { thread_id, reply_id } = req.body;
+      const board = req.params.board;
+
+      BoardModel.findOne({ name: board }, (err, data) => {
+        if (!data) {
+          console.log("Board does not exist\nCreating a new one");
+
+          res.json({ error: "No board with this name" });
+        } else {
+          console.log("Board\n-----\n", data);
+
+          let thread = data.threads.id(thread_id);
+          let reply = thread.replies.id(reply_id);
+          reply.reported = true;
+          reply.bumped_on = new Date();
+
+          data.save((err, updatedData) => {
+            if (!err) {
+              res.send("Success");
+            }
+          });
+        }
+      });
+    })
+    // delete
+    .delete((req, res) => {
+      const { thread_id, reply_id, delete_password } = req.body;
+      const board = req.params.board;
+
+      console.log("Incoming request ->", req.body);
+
+      BoardModel.findOne({ name: board }, (err, data) => {
+        if (!data) {
+          console.log("Board does not exist\nCreating a new one");
+
+          res.json({ error: "No board with this name" });
+        } else {
+          console.log("Board\n-----\n", data);
+
+          let thread = data.threads.id(thread_id);
+          let reply = thread.replies.id(reply_id);
+
+          if (reply.delete_password === delete_password) {
+            reply.remove();
+          } else {
+            res.send("Incorrect Password");
+            return;
+          }
+          data.save((err, updatedData) => {
+            if (!err) {
+              res.send("Success");
+            }
+          });
+        }
+      });
+    });
 };
